@@ -116,6 +116,7 @@ function OnWorldPreUpdate()
 	local curr_mouse_x, curr_mouse_y = InputGetMousePosOnScreen()
 	if InputIsMouseButtonJustDown(Mouse_left) then
 		mouse_move = false
+		from = ""
 		for k, inventory in pairs(inventories) do
 			if mouse_in_inventory(inventory) then
 				from = k
@@ -130,6 +131,7 @@ function OnWorldPreUpdate()
 	local inventory_open = GameIsInventoryOpen()
 	local mouse_down = InputIsMouseButtonDown(Mouse_left)
 	local mouse_just_up = InputIsMouseButtonJustUp(Mouse_left)
+	to = ""
 	for k, inventory in pairs(inventories) do
 		if mouse_in_inventory(inventory) then
 			to = k

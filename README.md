@@ -1,2 +1,2 @@
 # noita_inventory
- Noita better inventory mod
+ Noita better inventory mod.

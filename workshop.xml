@@ -2,6 +2,7 @@
     name="Noita Inventory"
     description="
         Make all your items can be dragged into spell inventory.
+        You can also drag your spells into item inventory.
         https://github.com/XM666-Dev/NoitaInventory
     "
     tags="gameplay,quality of life,tweaks,items"

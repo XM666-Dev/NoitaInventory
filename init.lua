@@ -164,7 +164,7 @@ function OnWorldPreUpdate()
 				end
 			end
 		end
-		if mouse_drag and from == "ITEM" and to == "SPELL" or from == "SPELL" and to == "SPELL" then
+		if mouse_drag and (from == "ITEM" and to == "SPELL" or from == "SPELL" and to == "ITEM" and mouse_just_up) or from == "SPELL" and to == "SPELL" then
 			for _, item in ipairs(inventory_items) do
 				if not item_is_wand(item) and not item_is_spell(item) then
 					EntityAddTag(item, "this_is_sampo")

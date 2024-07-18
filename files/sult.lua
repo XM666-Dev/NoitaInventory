@@ -133,8 +133,8 @@ function validate_entity(entity)
     return entity and entity > 0 and entity or nil
 end
 
-function get_children(entity)
-    return EntityGetAllChildren(entity) or {}
+function get_children(...)
+    return EntityGetAllChildren(...) or {}
 end
 
 function get_inventory_items(entity)
@@ -330,4 +330,115 @@ function point_in_rectangle(x, y, left, up, right, down)
     return x >= left and x <= right and y >= up and y <= down
 end
 
+local ids = {}
+local max_id = 0x7FFFFFFF
+function new_id(s)
+    local id = ids[s]
+    if id == nil then
+        id = max_id
+        ids[s] = id
+        max_id = id - 1
+    end
+    return id
+end
+
 --#endregion
+
+function Metatable(accessors)
+    local getters = {}
+    for k, accessor in pairs(accessors) do
+        getters[k] = accessor.get
+    end
+    local setters = {}
+    for k, accessor in pairs(accessors) do
+        setters[k] = accessor.set
+    end
+    return {
+        __index = function(t, k)
+            return (getters[k] or rawget)(t, k)
+        end,
+        __newindex = function(t, k, v)
+            (setters[k] or rawset)(t, k, v)
+        end,
+    }
+end
+
+function EntityAccessor(tag, pred)
+    return {
+        get = function(t, k)
+            local entity = EntityGetWithTag(tag)[1]
+            return (pred == nil or pred(entity)) and entity or nil
+        end,
+        set = function(t, k, v)
+            for i, entity in ipairs(EntityGetWithTag(tag)) do
+                EntityRemoveTag(entity, tag)
+            end
+            EntityAddTag(v, tag)
+        end,
+    }
+end
+
+local metatable = {
+    __index = function(t, k)
+        return { ComponentGetValue2(t._id, k) }
+    end,
+    __newindex = function(t, k, v)
+        ComponentSetValue2(t._id, k, unpack(v))
+    end,
+}
+local component_metatable = {
+    __index = function(t, k)
+        return ComponentGetValue2(t._id, k)
+    end,
+    __newindex = function(t, k, v)
+        ComponentSetValue2(t._id, k, v)
+    end,
+    __call = function(t, ...)
+        return setmetatable(t, metatable)
+    end,
+}
+function ComponentAccessor(f, ...)
+    local args = { ... }
+    local self = {}
+    self.get = function(t, k)
+        local cached = t[self]
+        if cached == nil then
+            local entity = t.id
+            local component = f(entity, unpack(args))
+            if component == nil then
+                return nil
+            end
+            cached = { _id = component }
+            t[self] = cached
+        end
+        return setmetatable(cached, component_metatable)
+    end
+    return self
+end
+
+function VariableAccessor(tag, field, default)
+    local self = {}
+    self.get = function(t, k)
+        local component = t[self]
+        if component == nil then
+            local entity = t.id
+            component = EntityGetFirstComponent(entity, "VariableStorageComponent", tag) or EntityAddComponent2(entity, "VariableStorageComponent", { _tags = tag, [field] = default })
+            t[self] = component
+        end
+        return ComponentGetValue2(component, field)
+    end
+    self.set = function(t, k, v)
+        local component = t[self]
+        if component == nil then
+            local entity = t.id
+            component = EntityGetFirstComponent(entity, "VariableStorageComponent", tag) or EntityAddComponent2(entity, "VariableStorageComponent", { _tags = tag, [field] = default })
+            t[self] = component
+        end
+        ComponentSetValue2(component, field, v)
+    end
+    return self
+end
+
+function ConstantAccessor(value)
+    return { get = function() return value end }
+end

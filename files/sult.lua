@@ -2,85 +2,6 @@ dofile_once("data/scripts/lib/utilities.lua")
 
 --#region
 
-function AccessorTable(t, accessors)
-    return setmetatable(t, {
-        __index = function(t, k)
-            local accessor = accessors[k]
-            if accessor then
-                return accessor.get()
-            end
-        end,
-        __newindex = function(t, k, v)
-            local accessor = accessors[k]
-            if accessor then
-                return accessor.set(v)
-            end
-            rawset(t, k, v)
-        end
-    })
-end
-
-function Data(t, accessors)
-    return setmetatable(t, {
-        __index = function(t, k)
-            return (accessors[k] or rawget)(t, k)
-        end,
-        __newindex = function(t, k, v)
-            (accessors[k] or rawset)(t, k, v)
-        end
-    })
-end
-
-function EntityVariableAccessor(entity, name, field, value)
-    local variable = get_variable_storage_component_or_add(entity, name, field, value)
-    return {
-        get = function()
-            return ComponentGetValue2(variable, field)
-        end,
-        set = function(...)
-            ComponentSetValue2(variable, field, ...)
-        end
-    }
-end
-
-function TagEntityAccessor(tag, pred)
-    return {
-        get = function()
-            local entity = get_tag_entity(tag)
-            if pred then
-                return pred(entity) and entity or nil
-            end
-            return entity
-        end,
-        set = function(v)
-            set_tag_entity(tag, v)
-        end
-    }
-end
-
-function ComponentData(component)
-    local list_component_data = setmetatable({}, {
-        __index = function(t, k)
-            return { ComponentGetValue2(component, k) }
-        end,
-        __newindex = function(t, k, v)
-            ComponentSetValue2(component, k, unpack(v))
-        end
-    })
-    return component and setmetatable({}, {
-        id = component,
-        __index = function(t, k)
-            return ComponentGetValue2(component, k)
-        end,
-        __newindex = function(t, k, v)
-            ComponentSetValue2(component, k, v)
-        end,
-        __call = function(t, ...)
-            return list_component_data
-        end
-    })
-end
-
 function ModData(mod)
     return setmetatable({}, {
         id = mod,
@@ -91,25 +12,6 @@ function ModData(mod)
             return mod .. t2
         end
     })
-end
-
---#endregion
-
---#region
-
-function get_variable_storage_component_or_add(entity, name, field, value)
-    return get_variable_storage_component(entity, name) or EntityAddComponent2(entity, "VariableStorageComponent", { name = name, [field] = value })
-end
-
-function get_tag_entity(tag)
-    return EntityGetWithTag(tag)[1]
-end
-
-function set_tag_entity(tag, entity)
-    for i, tagged_entity in ipairs(EntityGetWithTag(tag)) do
-        EntityRemoveTag(tagged_entity, tag)
-    end
-    EntityAddTag(entity, tag)
 end
 
 --#endregion

@@ -147,7 +147,7 @@ function OnWorldPreUpdate()
 					end
 				end
 			end
-			if mouse_just_up and from == "ITEM" and to == "SPELL" then
+			if mouse_just_up and (from == "ITEM" and to == "SPELL" or from == "SPELL" and to == "ITEM") then
 				local active_item = get_active_item(player)
 				if active_item ~= nil and not item_is_wand(active_item) and not item_is_spell(active_item) then
 					EntityAddComponent2(active_item, "LuaComponent", {

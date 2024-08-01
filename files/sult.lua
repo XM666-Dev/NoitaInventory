@@ -2,21 +2,7 @@ dofile_once("data/scripts/lib/utilities.lua")
 
 --#region
 
-function ModData(mod)
-    return setmetatable({}, {
-        id = mod,
-        __index = function(t, k)
-            return mod .. "." .. k
-        end,
-        __concat = function(t1, t2)
-            return mod .. t2
-        end
-    })
-end
-
---#endregion
-
---#region
+NUMERIC_CHARACTERS = "0123456789"
 
 function append_translations(filename)
     local common = "data/translations/common.csv"
@@ -27,20 +13,20 @@ function has_flag_run_or_add(flag)
     return GameHasFlagRun(flag) or GameAddFlagRun(flag)
 end
 
-function get_id(data)
-    return getmetatable(data).id
-end
-
 function validate_entity(entity)
     return entity and entity > 0 and entity or nil
 end
 
-function get_children(...)
-    return EntityGetAllChildren(...) or {}
+function get_children(entity, ...)
+    return EntityGetAllChildren(entity, ...) or {}
 end
 
 function get_inventory_items(entity)
     return GameGetAllInventoryItems(entity) or {}
+end
+
+function get_frame_num_next()
+    return GameGetFrameNum() + 1
 end
 
 function get_camera_corner()
@@ -61,11 +47,17 @@ function get_pos_on_screen(gui, x, y)
     return (x - camera_x) * zoom_x, (y - camera_y) * zoom_y
 end
 
-function get_frame_num_next()
-    return GameGetFrameNum() + 1
+local ids = {}
+local max_id = 0x7FFFFFFF
+function new_id(s)
+    local id = ids[s]
+    if id == nil then
+        id = max_id
+        ids[s] = id
+        max_id = id - 1
+    end
+    return id
 end
-
-local ModTextFileSetContent = ModTextFileSetContent
 
 function serialize(v)
     return (({
@@ -73,16 +65,15 @@ function serialize(v)
         string = function(s) return ("%q"):format(s) end,
         table = function(t)
             local s = "{"
-            local i = 1
             for k, v in pairs(t) do
-                s = s .. "[" .. serialize(k) .. "]=" .. serialize(v) .. (i < #t and "," or "")
-                i = i + 1
+                s = s .. "[" .. serialize(k) .. "]=" .. serialize(v) .. ","
             end
             return s .. "}"
-        end
+        end,
     })[type(v)] or tostring)(v)
 end
 
+local ModTextFileSetContent = ModTextFileSetContent
 function deserialize(s)
     ModTextFileSetContent("data/scripts/empty.lua", "return " .. s)
     local f, err = loadfile("data/scripts/empty.lua")
@@ -127,11 +118,9 @@ function SettingAccessor(id, filename, setting_date_filename, file_date_filename
             set_setting_date(get_setting_date() + 1)
             self.cache = v
             self.cache_date = get_setting_date()
-        end
+        end,
     }
 end
-
-NUMERIC_CHARACTERS = "0123456789"
 
 function get_language()
     return ({
@@ -149,19 +138,20 @@ function get_language()
     })[GameTextGet("$current_language")]
 end
 
-function GetterTable(t, getters)
-    return setmetatable(t, {
-        __index = function(t, k)
-            local getter = getters[k]
-            return getter and getter()
-        end
-    })
-end
-
 function debug_print(...)
     local s = ""
     for i, v in ipairs({ ... }) do
         s = s .. string.from(v)
+    end
+    print(s)
+    GamePrint(s)
+end
+
+function debug_print_list(...)
+    local t = { ... }
+    local s = ""
+    for i, v in ipairs(t) do
+        s = s .. string.from(v) .. (i < #t and "," or "")
     end
     print(s)
     GamePrint(s)
@@ -181,12 +171,13 @@ function string.from(v)
                 i = i + 1
             end
             return s .. "}"
-        end
+        end,
     })[type(v)] or tostring)(v)
 end
 
 function string.asub(s, repl)
-    return s:gsub('(%g+)%s*=%s*(%b"")', repl)
+    --return s:gsub('(%g+)%s*=%s*(%b"")', repl)
+    return s:gsub('(%g+)%s*=%s*"(.-)"', repl)
 end
 
 function table.find(list, pred)
@@ -216,6 +207,14 @@ function table.iterate(list, comp, value)
     return value
 end
 
+function table.copy(t)
+    local result = {}
+    for k, v in pairs(t) do
+        result[k] = v
+    end
+    return result
+end
+
 function math.round(x)
     return math.floor(x + 0.5)
 end
@@ -230,18 +229,6 @@ end
 
 function point_in_rectangle(x, y, left, up, right, down)
     return x >= left and x <= right and y >= up and y <= down
-end
-
-local ids = {}
-local max_id = 0x7FFFFFFF
-function new_id(s)
-    local id = ids[s]
-    if id == nil then
-        id = max_id
-        ids[s] = id
-        max_id = id - 1
-    end
-    return id
 end
 
 --#endregion
@@ -263,6 +250,17 @@ function Metatable(accessors)
             (setters[k] or rawset)(t, k, v)
         end,
     }
+end
+
+function Table(t, getters, setters)
+    return setmetatable(t, {
+        __index = function(t, k)
+            return (getters[k] or rawget)(t, k)
+        end,
+        __newindex = function(t, k, v)
+            (setters[k] or rawset)(t, k, v)
+        end,
+    })
 end
 
 function EntityAccessor(tag, pred)

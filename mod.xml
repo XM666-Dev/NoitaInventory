@@ -1,5 +1,5 @@
 <Mod
     name="Noita Inventory"
     description="Drag your items into spell inventory!"
->
-</Mod>
+    request_no_api_restrictions="1"
+/>

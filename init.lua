@@ -1,5 +1,8 @@
 dofile_once("mods/noita_inventory/files/sult.lua")
+dofile_once("mods/noita_inventory/NoitaPatcher/load.lua")
 dofile_once("data/scripts/debug/keycodes.lua")
+
+local np = require("noitapatcher")
 
 function get_player()
 	return get_players()[1]
@@ -73,6 +76,21 @@ function mouse_in_inventory(inventory)
 	)
 end
 
+function get_current_slot(inventories)
+	local name
+	local slot_x
+	local slot_y
+	local mouse_x, mouse_y = InputGetMousePosOnScreen()
+	for k, inventory in pairs(inventories) do
+		if mouse_in_inventory(inventory) then
+			name = k
+			slot_x = math.floor((mouse_x / 2 - inventory.x) / inventory.box_w)
+			slot_y = math.floor((mouse_y / 2 - inventory.y) / inventory.box_h)
+		end
+	end
+	return name, slot_x, slot_y
+end
+
 function get_quick_inventory(player)
 	local children = get_children(player)
 	return children[table.find(children, function(child)
@@ -104,27 +122,20 @@ function OnWorldPreUpdate()
 	local mouse_just_up = InputIsMouseButtonJustUp(Mouse_left)
 
 	local inventories = get_inventories(player)
-	local to_x, to_y = InputGetMousePosOnScreen()
+	local mouse_to_x, mouse_to_y = InputGetMousePosOnScreen()
 	if mouse_just_down then
-		from_x = to_x
-		from_y = to_y
-		from = ""
-		for k, inventory in pairs(inventories) do
-			if mouse_in_inventory(inventory) then
-				from = k
-			end
-		end
+		mouse_from_x = mouse_to_x
+		mouse_from_y = mouse_to_y
+		from, from_x, from_y = get_current_slot(inventories)
 		mouse_drag = false
-	elseif from_x ~= nil and from_y ~= nil and get_distance2(to_x, to_y, from_x, from_y) >= 16 then
+	elseif mouse_from_x ~= nil and mouse_from_y ~= nil and get_distance2(mouse_to_x, mouse_to_y, mouse_from_x, mouse_from_y) >= 16 then
 		mouse_drag = true
 	end
-	local to = ""
-	for k, inventory in pairs(inventories) do
-		if mouse_in_inventory(inventory) then
-			to = k
-		end
-	end
+	local to, to_x, to_y = get_current_slot(inventories)
 
+	local controls = EntityGetFirstComponent(player, "ControlsComponent")
+	local inventory = EntityGetFirstComponent(player, "Inventory2Component")
+	local gui = EntityGetFirstComponent(player, "InventoryGuiComponent")
 	local inventory_items = get_inventory_items(player)
 	local quick_inventory = get_quick_inventory(player)
 	local quick_items = get_children(quick_inventory)
@@ -169,6 +180,80 @@ function OnWorldPreUpdate()
 				if not item_is_wand(item) and not item_is_spell(item) then
 					EntityAddTag(item, "this_is_sampo")
 				end
+			end
+		end
+		if mouse_drag and mouse_just_up and (from == "WAND" and to == "ITEM" or from == "ITEM" and to == "WAND") and inventory ~= nil and gui ~= nil then
+			local wands_item
+			local items_item
+			for _, item in ipairs(quick_items) do
+				local item_component = EntityGetFirstComponentIncludingDisabled(item, "ItemComponent")
+				if item_component ~= nil then
+					local slot_x, slot_y = ComponentGetValue2(item_component, "inventory_slot")
+					if item_is_wand(item) and wands_item == nil then
+						if from == "WAND" then
+							if slot_x == from_x then
+								wands_item = item
+							end
+						elseif slot_x == to_x then
+							wands_item = item
+						end
+					elseif not item_is_wand(item) and items_item == nil then
+						if from == "WAND" then
+							if slot_x == to_x then
+								items_item = item
+							end
+						elseif slot_x == from_x then
+							items_item = item
+						end
+					end
+				end
+			end
+			if wands_item ~= nil then
+				local ability = EntityGetFirstComponentIncludingDisabled(wands_item, "AbilityComponent")
+				if ability ~= nil then
+					ComponentSetValue2(ability, "use_gun_script", false)
+					if EntityHasTag(wands_item, "wand") then
+						ComponentSetValue2(ability, "click_to_use", false)
+					end
+				end
+				local item = EntityGetFirstComponentIncludingDisabled(wands_item, "ItemComponent")
+				if item ~= nil then
+					ComponentSetValue2(item, "inventory_slot", from == "WAND" and to_x or from_x, 0)
+				end
+			end
+			if items_item ~= nil then
+				local ability = EntityGetFirstComponentIncludingDisabled(items_item, "AbilityComponent")
+				if ability ~= nil then
+					ComponentSetValue2(ability, "use_gun_script", true)
+					if EntityHasTag(items_item, "wand") then
+						ComponentSetValue2(ability, "click_to_use", true)
+					end
+				end
+				local item = EntityGetFirstComponentIncludingDisabled(items_item, "ItemComponent")
+				if item ~= nil then
+					ComponentSetValue2(item, "inventory_slot", from == "WAND" and from_x or to_x, 0)
+				end
+			end
+			if wands_item ~= nil and items_item ~= nil then
+				EntityRemoveComponent(player, gui)
+				gui = EntityAddComponent2(player, "InventoryGuiComponent")
+				ComponentSetValue2(gui, "mActive", true)
+				ComponentSetValue2(gui, "mBackgroundOverlayAlpha", 0.5)
+			end
+		end
+	end
+
+	if controls ~= nil and inventory ~= nil and ComponentGetValue2(controls, "mButtonDownFire") then
+		local item = ComponentGetValue2(inventory, "mActiveItem")
+		local x, y = EntityGetTransform(player)
+		local target_x, target_y = DEBUG_GetMouseWorld()
+		local ability = EntityGetFirstComponentIncludingDisabled(item, "AbilityComponent")
+		if ability ~= nil then
+			local use_gun_script = ComponentGetValue2(ability, "use_gun_script")
+			if not use_gun_script and EntityHasTag(item, "wand") then
+				ComponentSetValue2(ability, "use_gun_script", true)
+				np.UseItem(player, item, false, true, ComponentGetValue2(controls, "mButtonFrameFire") == GameGetFrameNum(), x, y, target_x, target_y)
+				ComponentSetValue2(ability, "use_gun_script", false)
 			end
 		end
 	end

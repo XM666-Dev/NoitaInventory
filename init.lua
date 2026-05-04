@@ -1,4 +1,4 @@
-dofile_once("mods/noita_inventory/files/sult.lua")
+dofile_once("mods/noita_inventory/files/tactic.lua")
 dofile_once("mods/noita_inventory/NoitaPatcher/load.lua")
 dofile_once("data/scripts/debug/keycodes.lua")
 

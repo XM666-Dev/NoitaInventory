@@ -12,7 +12,7 @@ function get_magic_numbers_number(key)
 	return tonumber(MagicNumbersGetValue(key))
 end
 
-gui = GuiCreate()
+local gui = GuiCreate()
 function get_image_dimensions(filename)
 	return GuiGetImageDimensions(gui, filename)
 end
@@ -93,19 +93,19 @@ end
 
 function get_quick_inventory(player)
 	local children = get_children(player)
-	return children[table.find(children, function(child)
+	return table.find(children, function(child)
 		return EntityGetName(child) == "inventory_quick"
-	end)]
+	end)
 end
 
 function get_active_item(player)
 	local inventory = EntityGetFirstComponent(player, "Inventory2Component")
-	return inventory and validate_entity(ComponentGetValue2(inventory, "mActiveItem"))
+	return inventory and validate(ComponentGetValue2(inventory, "mActiveItem"))
 end
 
 function item_is_wand(item)
 	local ability = EntityGetFirstComponentIncludingDisabled(item, "AbilityComponent")
-	return ability and ComponentGetValue2(ability, "use_gun_script") or false
+	return ability ~= nil and ComponentGetValue2(ability, "use_gun_script")
 end
 
 function item_is_spell(item)
@@ -122,16 +122,16 @@ function OnWorldPreUpdate()
 	local mouse_just_up = InputIsMouseButtonJustUp(Mouse_left)
 
 	local inventories = get_inventories(player)
+	local to, to_x, to_y = get_current_slot(inventories)
 	local mouse_to_x, mouse_to_y = InputGetMousePosOnScreen()
 	if mouse_just_down then
 		mouse_from_x = mouse_to_x
 		mouse_from_y = mouse_to_y
-		from, from_x, from_y = get_current_slot(inventories)
+		from, from_x, from_y = to, to_x, to_y
 		mouse_drag = false
 	elseif mouse_from_x ~= nil and mouse_from_y ~= nil and get_distance2(mouse_to_x, mouse_to_y, mouse_from_x, mouse_from_y) >= 16 then
 		mouse_drag = true
 	end
-	local to, to_x, to_y = get_current_slot(inventories)
 
 	local controls = EntityGetFirstComponent(player, "ControlsComponent")
 	local inventory = EntityGetFirstComponent(player, "Inventory2Component")
@@ -188,7 +188,7 @@ function OnWorldPreUpdate()
 			for _, item in ipairs(quick_items) do
 				local item_component = EntityGetFirstComponentIncludingDisabled(item, "ItemComponent")
 				if item_component ~= nil then
-					local slot_x, slot_y = ComponentGetValue2(item_component, "inventory_slot")
+					local slot_x = ComponentGetValue2(item_component, "inventory_slot")
 					if item_is_wand(item) and wands_item == nil then
 						if from == "WAND" then
 							if slot_x == from_x then
